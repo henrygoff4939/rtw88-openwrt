@@ -1,12 +1,21 @@
-name: Build rtw88 for OpenWrt 25.12.6 (rockchip/armv8)
+name: Build rtw88 for OpenWrt (rockchip/armv8)
 
 on:
   workflow_dispatch:
+    inputs:
+      openwrt_version:
+        description: "OpenWrt version, must match the router (cat /etc/openwrt_release)"
+        default: "25.12.6"
+        required: true
+      rtw88_ref:
+        description: "rtw88-openwrt branch/tag/commit (main = latest)"
+        default: "main"
+        required: true
 
 env:
-  OWRT_VERSION: "25.12.6"
+  OWRT_VERSION: ${{ inputs.openwrt_version }}
+  RTW88_REF: ${{ inputs.rtw88_ref }}
   OWRT_TARGET: "rockchip/armv8"
-  SDK_PATTERN: "openwrt-sdk-25.12.6-rockchip-armv8_gcc-[^\"]*Linux-x86_64\\.tar\\.zst"
 
 jobs:
   build:
@@ -18,12 +27,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential clang flex bison g++ gawk \
             gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev \
-            python3-setuptools rsync swig unzip zlib1g-dev file wget zstd
+            python3-setuptools python3-dev python3-pyelftools \
+            rsync swig unzip zlib1g-dev file wget zstd
 
       - name: Download and verify SDK
         run: |
           BASE="https://downloads.openwrt.org/releases/${OWRT_VERSION}/targets/${OWRT_TARGET}"
-          SDK=$(wget -qO- "$BASE/" | grep -oE "$SDK_PATTERN" | head -n1)
+          PATTERN="openwrt-sdk-${OWRT_VERSION}-rockchip-armv8_gcc-[^\"]*Linux-x86_64\.tar\.zst"
+          SDK=$(wget -qO- "$BASE/" | grep -oE "$PATTERN" | head -n1)
           [ -n "$SDK" ] || { echo "SDK file not found at $BASE"; exit 1; }
           echo "SDK: $SDK"
           wget -q "$BASE/$SDK"
@@ -36,22 +47,24 @@ jobs:
         working-directory: sdk
         run: |
           ./scripts/feeds update -a
-          ./scripts/feeds install -a
 
-      - name: Fetch rtw88-openwrt and keep only the 25.12 patch
+      - name: Fetch rtw88-openwrt and keep only the matching patch
         working-directory: sdk
         run: |
           git clone https://github.com/LuisMitaHL/rtw88-openwrt package/kernel/rtw88-backports
           cd package/kernel/rtw88-backports
+          git checkout "$RTW88_REF"
+          echo "Using commit: $(git rev-parse HEAD)"
+          MAJOR="${OWRT_VERSION%%.*}"
           echo "Patches before:"; ls -1 patches
           for f in patches/*; do
             case "$f" in
-              *25*) ;;
+              *"$MAJOR"*) ;;
               *) rm -f "$f" ;;
             esac
           done
           echo "Patches kept:"; ls -1 patches
-          [ -n "$(ls -A patches)" ] || { echo "No 25.12 patch left, check filenames"; exit 1; }
+          [ -n "$(ls -A patches)" ] || { echo "No patch matches $MAJOR, check filenames"; exit 1; }
 
       - name: Build
         working-directory: sdk
