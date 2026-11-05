@@ -55,16 +55,18 @@ jobs:
           cd package/kernel/rtw88-backports
           git checkout "$RTW88_REF"
           echo "Using commit: $(git rev-parse HEAD)"
-          MAJOR="${OWRT_VERSION%%.*}"
+          SERIES="${OWRT_VERSION%.*}"   # 25.12.6 -> 25.12
           echo "Patches before:"; ls -1 patches
-          for f in patches/*; do
+          # keep every numbered patch; drop only compat patches of other OpenWrt versions
+          for f in patches/999-openwrt-*-compat.patch; do
             case "$f" in
-              *"$MAJOR"*) ;;
+              *"openwrt-${SERIES}-compat.patch") ;;
               *) rm -f "$f" ;;
             esac
           done
           echo "Patches kept:"; ls -1 patches
-          [ -n "$(ls -A patches)" ] || { echo "No patch matches $MAJOR, check filenames"; exit 1; }
+          ls patches/999-openwrt-${SERIES}-compat.patch \
+            || { echo "No compat patch for ${SERIES}"; exit 1; }
 
       - name: Build
         working-directory: sdk
