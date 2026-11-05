@@ -72,6 +72,19 @@ jobs:
           ls patches/999-openwrt-${SERIES}-compat.patch \
             || { echo "No compat patch for ${SERIES}"; exit 1; }
 
+      - name: Add mac80211 package source (missing from the rockchip SDK)
+        working-directory: sdk
+        run: |
+          SERIES="${OWRT_VERSION%.*}"
+          git clone --depth 1 --filter=blob:none --sparse --branch "v${OWRT_VERSION}" \
+              https://github.com/openwrt/openwrt /tmp/owrt \
+            || git clone --depth 1 --filter=blob:none --sparse --branch "openwrt-${SERIES}" \
+              https://github.com/openwrt/openwrt /tmp/owrt
+          git -C /tmp/owrt sparse-checkout set package/kernel/mac80211
+          rm -rf package/kernel/mac80211
+          cp -a /tmp/owrt/package/kernel/mac80211 package/kernel/mac80211
+          ls package/kernel/mac80211
+
       - name: Build
         working-directory: sdk
         run: |
