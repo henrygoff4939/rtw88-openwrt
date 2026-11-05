@@ -76,9 +76,17 @@ jobs:
         working-directory: sdk
         run: |
           make defconfig
-          make package/rtw88-backports/compile -j"$(nproc)" V=s > ../build.log 2>&1 || {
+          # rtw88 builds against the mac80211 backport headers that the mac80211
+          # package installs into staging_dir, so select and build it first
+          echo "CONFIG_PACKAGE_kmod-mac80211=m" >> .config
+          make defconfig
+          (
+            make package/mac80211/compile -j"$(nproc)" V=s &&
+            ls -l staging_dir/target-*/usr/include/mac80211-backport/backport/autoconf.h &&
+            make package/rtw88-backports/compile -j"$(nproc)" V=s
+          ) > ../build.log 2>&1 || {
             echo "===== BUILD FAILED: first error-like lines ====="
-            grep -n -E "\*\*\*|Error [0-9]|error:|Patch failed|ERROR:" ../build.log | head -n 30
+            grep -n -E "\*\*\*|Error [0-9]|error:|Patch failed|ERROR:|No rule" ../build.log | head -n 30
             echo "===== BUILD FAILED: last 80 lines ====="
             tail -n 80 ../build.log
             exit 1
