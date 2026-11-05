@@ -76,7 +76,15 @@ jobs:
         working-directory: sdk
         run: |
           make defconfig
-          make package/rtw88-backports/compile -j"$(nproc)" V=s
+          make package/rtw88-backports/compile -j"$(nproc)" V=s > ../build.log 2>&1 || {
+            echo "===== BUILD FAILED: first error-like lines ====="
+            grep -n -E "\*\*\*|Error [0-9]|error:|Patch failed|ERROR:" ../build.log | head -n 30
+            echo "===== BUILD FAILED: last 80 lines ====="
+            tail -n 80 ../build.log
+            exit 1
+          }
+          echo "Build finished OK"
+          tail -n 5 ../build.log
 
       - name: Collect packages
         working-directory: sdk
@@ -90,3 +98,11 @@ jobs:
         with:
           name: rtw88-openwrt-${{ env.OWRT_VERSION }}-rockchip-armv8
           path: out/*
+
+      - name: Upload full build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
