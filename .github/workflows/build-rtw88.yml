@@ -65,6 +65,10 @@ jobs:
             esac
           done
           echo "Patches kept:"; ls -1 patches
+          # placeholder "index 0000000..0000000" makes GNU patch think the file is
+          # created and deleted at once; drop those lines
+          sed -i '/^index 0\{7,\}\.\.0\{7,\}/d' patches/*.patch
+          grep -c '^index 0000000..0000000' patches/*.patch || true
           ls patches/999-openwrt-${SERIES}-compat.patch \
             || { echo "No compat patch for ${SERIES}"; exit 1; }
 
